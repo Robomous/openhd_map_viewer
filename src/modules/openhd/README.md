@@ -26,6 +26,7 @@ import { OpenHDMapViewer } from "@/modules/openhd";
   vectorFlipY={true}
   defaultPointSize={0.2}
   defaultDensityPercent={60}
+  showLineDirections={true}
   style={{ width: "100vw", height: "100vh" }}
 />;
 ```
@@ -42,6 +43,7 @@ import { OpenHDMapViewer } from "@/modules/openhd";
 | `vectorFlipY` | boolean | true | Flip Y axis for vector alignment |
 | `defaultPointSize` | number | 0.1 | Initial point cloud point size (0.1-2.0) |
 | `defaultDensityPercent` | number | 35 | Initial point cloud density (1-100%) |
+| `showLineDirections` | boolean | false | Show minimal direction arrows on vector map lines (1 arrow per path) |
 | `style` | CSSProperties | - | Container styling |
 
 ## Internals

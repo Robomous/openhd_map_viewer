@@ -6,5 +6,8 @@
     "from": "EPSG:4326",
     "to": "EPSG:3857"
   },
-  "vectorFlipY": true
+  "vectorFlipY": true,
+  "defaultPointSize": 0.1,
+  "defaultDensityPercent": 35,
+  "showLineDirections": false
 }

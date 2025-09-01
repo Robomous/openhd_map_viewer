@@ -46,7 +46,8 @@ Create public/hd_maps/current/config.json with:
   },
   "vectorFlipY": true,
   "defaultPointSize": 0.1,  // initial point cloud point size
-  "defaultDensityPercent": 40  // initial point cloud density percentage
+  "defaultDensityPercent": 40,  // initial point cloud density percentage
+  "showLineDirections": false  // show direction arrows on vector map lines
 }
 ```
 
@@ -87,6 +88,7 @@ import { OpenHDMapViewer } from "./src/modules/openhd";
   vectorFlipY={true}
   defaultPointSize={0.1}
   defaultDensityPercent={40}
+  showLineDirections={true}
   style={{ width: "100vw", height: "100vh" }}
 />
 ```
@@ -111,6 +113,7 @@ To use this component in another project:
 | `vectorFlipY` | boolean | true | Flip Y axis for vector alignment |
 | `defaultPointSize` | number | 0.1 | Initial point cloud point size |
 | `defaultDensityPercent` | number | 35 | Initial point cloud density |
+| `showLineDirections` | boolean | false | Show minimal direction arrows on vector map lines (1 arrow per path) |
 | `style` | CSSProperties | - | Container styling |
 
 Notes

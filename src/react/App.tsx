@@ -9,6 +9,7 @@ type ConfigJson = {
   vectorFlipY?: boolean;
   defaultPointSize?: number;
   defaultDensityPercent?: number;
+  showLineDirections?: boolean;
 };
 
 export const App: React.FC = () => {
@@ -44,6 +45,7 @@ export const App: React.FC = () => {
       vectorFlipY={config?.vectorFlipY ?? true}
       defaultPointSize={config?.defaultPointSize ?? 0.1}
       defaultDensityPercent={config?.defaultDensityPercent ?? 35}
+      showLineDirections={config?.showLineDirections ?? false}
       style={{ width: "100vw", height: "100vh" }}
     />
   );

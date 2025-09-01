@@ -69,7 +69,7 @@ html, body {
   appearance: none;
   width: 16px;
   height: 16px;
-  background: #ffc107;
+  background: #EB5A47;
   border-radius: 50%;
   cursor: pointer;
 }
@@ -77,7 +77,7 @@ html, body {
 .overlay .control-group input[type="range"]::-moz-range-thumb {
   width: 16px;
   height: 16px;
-  background: #ffc107;
+  background: #EB5A47;
   border-radius: 50%;
   cursor: pointer;
   border: none;
@@ -92,6 +92,43 @@ html, body {
   font-size: 13px;
   margin-top: 4px;
   margin-bottom: 6px;
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(13, 15, 18, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #2a2f38;
+  border-top: 3px solid #EB5A47;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+.loading-text {
+  color: #e9edf1;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 
