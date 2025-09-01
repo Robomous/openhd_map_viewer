@@ -1,0 +1,10 @@
+{
+  "vector": "/hd_maps/current/vector_map.osm",
+  "pointcloud": "/hd_maps/current/pointcloud_map.pcd",
+  "projection": "identity",
+  "proj4": {
+    "from": "EPSG:4326",
+    "to": "EPSG:3857"
+  },
+  "vectorFlipY": true
+}

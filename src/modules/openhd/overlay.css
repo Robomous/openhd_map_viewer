@@ -1,0 +1,97 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #0d0f12;
+  color: #e9edf1;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+.overlay {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  background: rgba(15, 18, 24, 0.82);
+  border: 1px solid #1f2630;
+  border-radius: 12px;
+  padding: 12px 14px;
+  z-index: 10;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+  backdrop-filter: blur(4px);
+  max-width: 360px;
+}
+
+.overlay .panel h1 {
+  font-size: 16px;
+  margin: 0 0 6px;
+}
+
+.overlay .controls {
+  display: flex;
+  gap: 12px;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.overlay .point-cloud-controls,
+.overlay .vector-controls {
+  margin: 8px 0;
+  padding: 8px 0;
+  border-top: 1px solid #2a2f38;
+}
+
+.overlay .vector-controls {
+  margin-top: 4px;
+}
+
+.overlay .control-group {
+  margin: 8px 0;
+  font-size: 12px;
+}
+
+.overlay .control-group label {
+  display: block;
+  margin-bottom: 4px;
+  color: #e9edf1;
+}
+
+.overlay .control-group input[type="range"] {
+  width: 100%;
+  height: 4px;
+  background: #2a2f38;
+  border-radius: 2px;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.overlay .control-group input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #ffc107;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.overlay .control-group input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #ffc107;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+.overlay .hint {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+#status {
+  font-size: 13px;
+  margin-top: 4px;
+  margin-bottom: 6px;
+}
+
+

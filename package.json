@@ -1,0 +1,29 @@
+{
+  "name": "openhd-map-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.3.6",
+    "osmtogeojson": "^3.0.0-beta.5",
+    "proj4": "^2.11.0",
+    "three": "^0.166.0",
+    "zod": "^3.23.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@types/three": "^0.179.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
+  }
+}
