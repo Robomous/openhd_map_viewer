@@ -7,6 +7,8 @@ type ConfigJson = {
   projection?: "identity" | "proj4";
   proj4?: { from?: string; to?: string };
   vectorFlipY?: boolean;
+  defaultPointSize?: number;
+  defaultDensityPercent?: number;
 };
 
 export const App: React.FC = () => {
@@ -40,8 +42,8 @@ export const App: React.FC = () => {
       proj4From={config?.proj4?.from ?? "EPSG:4326"}
       proj4To={config?.proj4?.to ?? "EPSG:3857"}
       vectorFlipY={config?.vectorFlipY ?? true}
-      defaultPointSize={0.1}
-      defaultDensityPercent={40}
+      defaultPointSize={config?.defaultPointSize ?? 0.1}
+      defaultDensityPercent={config?.defaultDensityPercent ?? 35}
       style={{ width: "100vw", height: "100vh" }}
     />
   );

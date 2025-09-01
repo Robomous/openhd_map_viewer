@@ -1,3 +1,9 @@
+<img src="https://robomous.ai/images/layout/robomous-banner.svg" alt="Robomous.ai" width=300 />
+
+-----------------
+
+This repository was created by [robomous.ai](https://robomous.ai).
+
 OpenHD Map Viewer (MVP)
 =======================
 
@@ -8,9 +14,9 @@ Purpose
 
 Stack
 - Vite + TypeScript + React
-- Three.js (PCDLoader)
-- fast-xml-parser + osmtogeojson for OSM -> GeoJSON (when needed)
-- Optional: proj4 (stubbed, can be enabled later)
+- Three.js (latest with addons: PCDLoader, OrbitControls)
+- fast-xml-parser for OSM parsing
+- Optional: proj4 for coordinate projection
 
 Prereqs
 - nvm installed
@@ -29,6 +35,7 @@ Quick Start
 
 Config
 Create public/hd_maps/current/config.json with:
+```json
 {
   "vector": "/hd_maps/current/vector_map.osm",
   "pointcloud": "/hd_maps/current/pointcloud_map.pcd",
@@ -37,13 +44,77 @@ Create public/hd_maps/current/config.json with:
     "from": "EPSG:4326",
     "to": "EPSG:3857"
   },
-  "vectorFlipY": true
+  "vectorFlipY": true,
+  "defaultPointSize": 0.1,  // initial point cloud point size
+  "defaultDensityPercent": 40  // initial point cloud density percentage
 }
+```
+
+## Module Structure
+
+The OpenHD Map Viewer is organized as a self-contained module for easy decoupling:
+
+```
+src/modules/openhd/
+├── OpenHDMapViewer.tsx    # Main React component
+├── projection.ts          # Coordinate projection utilities
+├── overlay.css            # Component-specific styles
+├── index.ts              # Barrel exports
+└── README.md             # Module documentation
+```
+
+## Component Usage
+
+### Basic Usage
+```tsx
+import { OpenHDMapViewer } from "./src/modules/openhd";
+
+<OpenHDMapViewer
+  vectorUrl="/hd_maps/current/vector_map.osm"
+  pointcloudUrl="/hd_maps/current/pointcloud_map.pcd"
+  style={{ width: "100vw", height: "100vh" }}
+/>
+```
+
+### Advanced Usage with Projection
+```tsx
+<OpenHDMapViewer
+  vectorUrl="/hd_maps/current/vector_map.osm"
+  pointcloudUrl="/hd_maps/current/pointcloud_map.pcd"
+  projectionMode="proj4"
+  proj4From="EPSG:4326"
+  proj4To="EPSG:3857"
+  vectorFlipY={true}
+  defaultPointSize={0.1}
+  defaultDensityPercent={40}
+  style={{ width: "100vw", height: "100vh" }}
+/>
+```
+
+## Module Decoupling
+
+To use this component in another project:
+
+1. Copy the `src/modules/openhd/` folder to your project
+2. Install dependencies: `three`, `fast-xml-parser`, `proj4` (optional)
+3. Import: `import { OpenHDMapViewer } from "./modules/openhd"`
+
+## Props Reference
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `vectorUrl` | string | - | URL to Lanelet/OSM XML file |
+| `pointcloudUrl` | string | - | URL to PCD file |
+| `projectionMode` | "identity" \| "proj4" | "identity" | Coordinate projection mode |
+| `proj4From` | string | "EPSG:4326" | Source CRS for proj4 projection |
+| `proj4To` | string | "EPSG:3857" | Target CRS for proj4 projection |
+| `vectorFlipY` | boolean | true | Flip Y axis for vector alignment |
+| `defaultPointSize` | number | 0.1 | Initial point cloud point size |
+| `defaultDensityPercent` | number | 35 | Initial point cloud density |
+| `style` | CSSProperties | - | Container styling |
 
 Notes
 - For MVP, we assume map frames are compatible. If not, set projection to "proj4" and configure "from"/"to".
 - Large point clouds may need tiling/streaming in the future.
-
-Component
-- Reusable React component: OpenHDMapViewer
-- Props: vectorUrl, pointcloudUrl, projectionMode, proj4From, proj4To, vectorFlipY, defaultPointSize, defaultDensityPercent, style 
+- The component includes built-in controls for point cloud visualization and layer toggles.
+- Map data files (*.osm, *.pcd) are gitignored to prevent large binary files in version control. 

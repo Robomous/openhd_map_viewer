@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { PCDLoader } from "three/examples/jsm/loaders/PCDLoader.js";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { PCDLoader } from "three/addons/loaders/PCDLoader.js";
 import { XMLParser } from "fast-xml-parser";
 import { applyProjection, ProjectionConfig } from "./projection";
 import "./overlay.css";
@@ -14,7 +14,7 @@ export type OpenHDMapViewerProps = {
   proj4To?: string;
   vectorFlipY?: boolean;
   defaultPointSize?: number; // 0.1
-  defaultDensityPercent?: number; // 40
+  defaultDensityPercent?: number; // 35
   style?: React.CSSProperties; // container size
 };
 
@@ -26,7 +26,7 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
   proj4To = "EPSG:3857",
   vectorFlipY = true,
   defaultPointSize = 0.1,
-  defaultDensityPercent = 40,
+  defaultDensityPercent = 35,
   style
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
