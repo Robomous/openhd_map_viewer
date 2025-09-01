@@ -7,6 +7,8 @@ This repository was created by [robomous.ai](https://robomous.ai).
 OpenHD Map Viewer (MVP)
 =======================
 
+![OpenHD Map Viewer Preview](docs/openhd_map_viewer_example.png)
+
 Purpose
 - Visualize HD maps consisting of:
   1) Lanelet2 vector map (.osm)
