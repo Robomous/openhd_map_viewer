@@ -184,6 +184,14 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
     setIsLoadingPointCloud(true);
     setStatus(`Loading point cloud: ${url}`);
     try {
+      // Clear previous point cloud data
+      cloudGroupRef.current.children.forEach(obj => {
+        if ((obj as any).geometry) (obj as any).geometry.dispose();
+      });
+      cloudGroupRef.current.clear();
+      currentPointRef.current = null;
+      originalGeomRef.current = null;
+      
       const loader = new PCDLoader();
       const obj = await loader.loadAsync(url);
       obj.rotation.x = -Math.PI / 2;
@@ -300,6 +308,19 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
     setIsLoadingVectorMap(true);
     setStatus(`Loading vector map: ${url}`);
     try {
+      // Clear previous vector map data
+      vectorGroupRef.current.children.forEach(obj => {
+        if ((obj as any).geometry) (obj as any).geometry.dispose();
+      });
+      vectorGroupRef.current.clear();
+      
+      // Clear previous direction arrows and uncheck the checkbox
+      directionGroupRef.current.children.forEach(obj => {
+        if ((obj as any).geometry) (obj as any).geometry.dispose();
+      });
+      directionGroupRef.current.clear();
+      setShowDirections(false); // Uncheck the arrow checkbox when reloading vector map
+      
       const xmlText = await (await fetch(url)).text();
     const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" });
     const osm = parser.parse(xmlText)?.osm;
@@ -318,18 +339,6 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
       }
       if (x !== null && y !== null) nodeMap.set(id, { x, y, z });
     }
-
-    // clear previous
-    vectorGroupRef.current.children.forEach(obj => {
-      if ((obj as any).geometry) (obj as any).geometry.dispose();
-    });
-    vectorGroupRef.current.clear();
-    
-    // clear previous direction arrows
-    directionGroupRef.current.children.forEach(obj => {
-      if ((obj as any).geometry) (obj as any).geometry.dispose();
-    });
-    directionGroupRef.current.clear();
 
     const ways = Array.isArray(osm.way) ? osm.way : [osm.way];
     
