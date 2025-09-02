@@ -560,7 +560,7 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
       }
       
       if (loadedFiles.vector) {
-        await loadLanelet(URL.createObjectURL(loadedFiles.vector), yamlInfo);
+        await loadLanelet(URL.createObjectURL(loadedFiles.vector), yamlInfo, parsedMapConfig ?? null);
         if (myToken !== loadTokenRef.current) return; // Check token
         vectorLoaded = true;
       }
@@ -770,7 +770,7 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
     setIsCreatingArrows(false);
   };
 
-  const loadLanelet = async (url: string, yamlInfo?: { projector: "Local"|"MGRS"|"Unknown"; mgrsGrid?: string }) => {
+  const loadLanelet = async (url: string, yamlInfo?: { projector: "Local"|"MGRS"|"Unknown"; mgrsGrid?: string }, originOverride?: MapOrigin | null) => {
     setIsLoadingVectorMap(true);
     setStatus(`Loading vector map: ${url}`);
     try {
@@ -840,7 +840,7 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
         setStatus(`Derived UTM projection: ${utmEpsg}`);
         
         // Compute normalization origin in UTM meters
-        const effectiveMapOrigin = mapOrigin || tempMapOrigin;
+        const effectiveMapOrigin = mapOrigin || originOverride || tempMapOrigin;
         if (effectiveMapOrigin) {
           // Use map_config.yaml origin
           [E0, N0, U0] = applyProjection([effectiveMapOrigin.lon, effectiveMapOrigin.lat, effectiveMapOrigin.ele], projForThisMap);
@@ -952,7 +952,7 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
     }));
     
     // Apply RPY rotation if enabled (only for UI toggle, not alignment)
-    const effectiveMapOrigin = mapOrigin || tempMapOrigin;
+    const effectiveMapOrigin = mapOrigin || originOverride || tempMapOrigin;
     if (effectiveMapOrigin && applyOriginRPY) {
       mapFrameRef.current.rotation.x = effectiveMapOrigin.roll;
       mapFrameRef.current.rotation.y = effectiveMapOrigin.yaw;
