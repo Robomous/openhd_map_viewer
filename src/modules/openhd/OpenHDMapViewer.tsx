@@ -56,6 +56,13 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
   const [isLoadingPointCloud, setIsLoadingPointCloud] = useState(false);
   const [isLoadingVectorMap, setIsLoadingVectorMap] = useState(false);
   const [isCreatingArrows, setIsCreatingArrows] = useState(false);
+  
+  // File loading state
+  const [loadedFiles, setLoadedFiles] = useState<{
+    pointcloud?: File;
+    vector?: File;
+    mapProjectorInfo?: File;
+  }>({});
 
   const proj: ProjectionConfig = useMemo(() => (
     projectionMode === "proj4"
@@ -178,6 +185,48 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
       points.geometry.dispose();
       points.geometry = originalGeom.clone();
     }
+  };
+
+  const handleFileSelect = async (file: File, type: 'pointcloud' | 'vector' | 'mapProjectorInfo') => {
+    setLoadedFiles(prev => ({ ...prev, [type]: file }));
+    setStatus(`File loaded: ${file.name}`);
+  };
+
+  const reloadWithLoadedFiles = async () => {
+    if (!loadedFiles.pointcloud && !loadedFiles.vector) {
+      setStatus("Please load at least one file first");
+      return;
+    }
+
+    setStatus("Reloading with new files...");
+    
+    try {
+      // Clear previous data
+      cloudGroupRef.current.clear();
+      vectorGroupRef.current.clear();
+      directionGroupRef.current.clear();
+      currentPointRef.current = null;
+      originalGeomRef.current = null;
+      
+      // Load new files
+      if (loadedFiles.pointcloud) {
+        await loadPointCloud(URL.createObjectURL(loadedFiles.pointcloud));
+      }
+      
+      if (loadedFiles.vector) {
+        await loadLanelet(URL.createObjectURL(loadedFiles.vector));
+      }
+      
+      setStatus("Map reloaded successfully!");
+    } catch (error) {
+      console.error('Error reloading map:', error);
+      setStatus(`Error reloading map: ${error}`);
+    }
+  };
+
+  const clearLoadedFiles = () => {
+    setLoadedFiles({});
+    setStatus("Loaded files cleared");
   };
 
   const loadPointCloud = async (url: string) => {
@@ -449,18 +498,68 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
               <input type="range" min={1} max={50} step={1} value={density} onChange={e=>setDensity(parseInt(e.target.value))} />
             </div>
             <div className="control-group">
-              <label>Update files:</label>
+              <label>📁 Load New Map Files:</label>
               <div style={{ marginTop: "8px" }}>
                 <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "#e9edf1" }}>
                   Point Cloud (.pcd):
                 </label>
-                <input type="file" accept=".pcd" onChange={e=>{ const f=e.target.files?.[0]; if (f) loadPointCloud(URL.createObjectURL(f)); }} />
+                <input type="file" accept=".pcd" onChange={e=>{ const f=e.target.files?.[0]; if (f) handleFileSelect(f, 'pointcloud'); }} />
+                {loadedFiles.pointcloud && <div style={{ fontSize: "10px", color: "#888" }}>✓ {loadedFiles.pointcloud.name}</div>}
               </div>
               <div style={{ marginTop: "8px" }}>
                 <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "#e9edf1" }}>
                   Vector Map (.osm, .xml):
                 </label>
-                <input type="file" accept=".osm,.xml" onChange={e=>{ const f=e.target.files?.[0]; if (f) loadLanelet(URL.createObjectURL(f)); }} />
+                <input type="file" accept=".osm,.xml" onChange={e=>{ const f=e.target.files?.[0]; if (f) handleFileSelect(f, 'vector'); }} />
+                {loadedFiles.vector && <div style={{ fontSize: "10px", color: "#888" }}>✓ {loadedFiles.vector.name}</div>}
+              </div>
+              <div style={{ marginTop: "8px" }}>
+                <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "#e9edf1" }}>
+                  Map Projector Info (.yaml):
+                </label>
+                <input type="file" accept=".yaml,.yml" onChange={e=>{ const f=e.target.files?.[0]; if (f) handleFileSelect(f, 'mapProjectorInfo'); }} />
+                {loadedFiles.mapProjectorInfo && <div style={{ fontSize: "10px", color: "#888" }}>✓ {loadedFiles.mapProjectorInfo.name}</div>}
+              </div>
+              
+              {/* Action Buttons Section */}
+              <div style={{ marginTop: "16px", borderTop: "1px solid #333", paddingTop: "12px" }}>
+                <div style={{ marginBottom: "8px", fontSize: "12px", color: "#888", fontWeight: "bold" }}>
+                  Map Actions:
+                </div>
+                
+                <button 
+                  onClick={reloadWithLoadedFiles}
+                  disabled={!loadedFiles.pointcloud && !loadedFiles.vector}
+                  style={{
+                    padding: "8px 16px",
+                    backgroundColor: (loadedFiles.pointcloud || loadedFiles.vector) ? "#4CAF50" : "#666",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: (loadedFiles.pointcloud || loadedFiles.vector) ? "pointer" : "not-allowed",
+                    fontSize: "12px",
+                    width: "100%",
+                    marginBottom: "8px"
+                  }}
+                >
+                  🔄 Reload Map with New Files
+                </button>
+                
+                <button 
+                  onClick={clearLoadedFiles}
+                  style={{
+                    padding: "8px 16px",
+                    backgroundColor: "#FF9800",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    width: "100%"
+                  }}
+                >
+                  🗑️ Clear All Loaded Files
+                </button>
               </div>
             </div>
         </div>
