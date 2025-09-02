@@ -49,9 +49,6 @@ Configuration and Files
     ```
   - map_config.yaml (TEMPORARY): may contain `map_origin` for E/N/U normalization and optional RPY. This is intended to be loaded via the component UI file loader and is not required for startup.
 
-- Deprecated:
-  - public/hd_maps/current/config.json is no longer used. Provide URLs via component props or use the in-viewer file loader.
-
 ## Module Structure
 
 The OpenHD Map Viewer is organized as a self-contained module for easy decoupling:
