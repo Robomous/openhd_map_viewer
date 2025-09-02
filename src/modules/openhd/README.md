@@ -46,6 +46,12 @@ import { OpenHDMapViewer } from "@/modules/openhd";
 | `showLineDirections` | boolean | false | Show minimal direction arrows on vector map lines (1 arrow per path) |
 | `style` | CSSProperties | - | Container styling |
 
+## Projector and Optional Files
+
+- `map_projector_info.yaml` is optional. If missing or fails to parse, the viewer defaults to `projector_type: MGRS`.
+- `map_config.yaml` is optional and TEMPORARY. When provided via the UI file loader, its `map_origin` (lat/lon/ele and optional roll/pitch/yaw) will be used as the normalization origin for MGRS maps.
+- If both are absent, the viewer will derive a UTM EPSG from the map's first lat/lon sample and compute a centroid fallback origin.
+
 ## Internals
 
 - `projection.ts`: optional coordinate projection via proj4

@@ -30,28 +30,27 @@ Quick Start
 2) yarn install
 3) Place your map files under:
    public/hd_maps/current/
-   - vector_map.osm
+   - vector_map.osm (or .xml)
    - pointcloud_map.pcd
-   - config.json (see below)
+   - map_projector_info.yaml (optional; defaults to MGRS when absent)
+   - map_config.yaml (optional; TEMPORARY origin file used via UI loader)
 4) yarn dev
 
-Config
-Create public/hd_maps/current/config.json with:
-```json
-{
-  "vector": "/hd_maps/current/vector_map.osm",
-  "pointcloud": "/hd_maps/current/pointcloud_map.pcd",
-  "projection": "identity",  // options: "identity" (default), "proj4"
-  "proj4": {
-    "from": "EPSG:4326",
-    "to": "EPSG:3857"
-  },
-  "vectorFlipY": true,
-  "defaultPointSize": 0.1,  // initial point cloud point size
-  "defaultDensityPercent": 40,  // initial point cloud density percentage
-  "showLineDirections": false  // show direction arrows on vector map lines
-}
-```
+Configuration and Files
+- Required files:
+  - vector_map.osm (or .xml Lanelet2)
+  - pointcloud_map.pcd
+
+- Optional files:
+  - map_projector_info.yaml: describes map projector. If missing or invalid, the viewer now defaults to projector_type: MGRS. Example:
+    ```yaml
+    projector_type: MGRS  # or Local
+    mgrs_grid: 54S        # optional
+    ```
+  - map_config.yaml (TEMPORARY): may contain `map_origin` for E/N/U normalization and optional RPY. This is intended to be loaded via the component UI file loader and is not required for startup.
+
+- Deprecated:
+  - public/hd_maps/current/config.json is no longer used. Provide URLs via component props or use the in-viewer file loader.
 
 ## Module Structure
 
@@ -73,7 +72,7 @@ src/modules/openhd/
 import { OpenHDMapViewer } from "./src/modules/openhd";
 
 <OpenHDMapViewer
-  vectorUrl="/hd_maps/current/vector_map.osm"
+  vectorUrl="/hd_maps/current/vector_map.osm"  // or .xml
   pointcloudUrl="/hd_maps/current/pointcloud_map.pcd"
   style={{ width: "100vw", height: "100vh" }}
 />
