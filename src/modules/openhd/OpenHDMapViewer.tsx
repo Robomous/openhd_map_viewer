@@ -111,6 +111,22 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
     projForThisMap?: ProjectionConfig;
   }>({ usingProj4: false });
 
+  // Individual frame refs for separate layer control
+  const vectorFrameRef = useRef(new THREE.Group());
+  const cloudFrameRef = useRef(new THREE.Group());
+
+  // Store normalization origin for alignment
+  const normOriginRef = useRef<{ E0: number; N0: number; U0: number } | null>(null);
+
+  // Stats for diagnostics
+  const [layerStats, setLayerStats] = useState<{
+    vectorCentroid?: THREE.Vector3;
+    cloudCentroid?: THREE.Vector3;
+    vectorRadius?: number;
+    cloudRadius?: number;
+    originSource?: string;
+  }>({});
+
   const proj: ProjectionConfig = useMemo(() => (
     projectionMode === "proj4"
       ? { mode: "proj4", from: proj4From, to: proj4To }
@@ -146,9 +162,13 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
     dir.position.set(100, 200, 100);
     scene.add(dir);
 
-    mapFrameRef.current.add(vectorGroupRef.current);
-    mapFrameRef.current.add(cloudGroupRef.current);
-    mapFrameRef.current.add(directionGroupRef.current);
+    // Set up frame hierarchy: individual frames for separate layer control
+    vectorFrameRef.current.add(vectorGroupRef.current);
+    vectorFrameRef.current.add(directionGroupRef.current); // arrows belong with vectors
+    cloudFrameRef.current.add(cloudGroupRef.current);
+    
+    mapFrameRef.current.add(vectorFrameRef.current);
+    mapFrameRef.current.add(cloudFrameRef.current);
     scene.add(mapFrameRef.current);
 
     const onResize = () => {
@@ -243,10 +263,22 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
       const doc: any = yaml.load(text);
       const proj = (doc?.projector_type || doc?.projectorType || "").toString();
       const grid = (doc?.mgrs_grid || doc?.mgrsGrid || undefined) as string | undefined;
-      if (/^local$/i.test(proj)) return { projector: "Local" };
-      if (/^mgrs$/i.test(proj))  return { projector: "MGRS", mgrsGrid: grid };
-    } catch {}
-    return { projector: "Unknown" };
+      
+      let result: { projector:"Local"|"MGRS"|"Unknown"; mgrsGrid?:string };
+      if (/^local$/i.test(proj)) {
+        result = { projector: "Local" };
+      } else if (/^mgrs$/i.test(proj)) {
+        result = { projector: "MGRS", mgrsGrid: grid };
+      } else {
+        result = { projector: "Unknown" };
+      }
+      
+      console.log(`parsed map_projector_info.yaml → projector=${result.projector}, mgrs_grid=${result.mgrsGrid || 'undefined'}`);
+      return result;
+    } catch (error) {
+      console.warn('Error parsing map_projector_info.yaml:', error);
+      return { projector: "Unknown" };
+    }
   }
 
   // Helper to derive UTM EPSG string
@@ -267,21 +299,46 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
     try {
       const text = await file.text();
       const doc: any = yaml.load(text);
-      const origin = doc?.['/**']?.ros__parameters?.map_origin;
-      if (!origin) return null;
       
-      // Normalize and validate - default to 0.0 if missing
-      const lat = typeof origin.latitude === 'number' ? origin.latitude : 0.0;
-      const lon = typeof origin.longitude === 'number' ? origin.longitude : 0.0;
-      const ele = typeof origin.elevation === 'number' ? origin.elevation : 0.0;
-      const roll = typeof origin.roll === 'number' ? origin.roll : 0.0;
-      const pitch = typeof origin.pitch === 'number' ? origin.pitch : 0.0;
-      const yaw = typeof origin.yaw === 'number' ? origin.yaw : 0.0;
+      // Try multiple fallback paths for robust parsing
+      let origin = null;
+      
+      // Primary path: /**:ros__parameters:map_origin
+      if (doc?.['/**']?.ros__parameters?.map_origin) {
+        origin = doc['/**'].ros__parameters.map_origin;
+      }
+      // Fallback 1: ros__parameters:map_origin
+      else if (doc?.ros__parameters?.map_origin) {
+        origin = doc.ros__parameters.map_origin;
+      }
+      // Fallback 2: map_origin directly
+      else if (doc?.map_origin) {
+        origin = doc.map_origin;
+      }
+      // Fallback 3: camelCase variant
+      else if (doc?.['/**']?.ros__parameters?.mapOrigin) {
+        origin = doc['/**'].ros__parameters.mapOrigin;
+      }
+      
+      if (!origin) {
+        console.warn('map_config.yaml: No map_origin found in any expected location');
+        return null;
+      }
+      
+      // Coerce to numbers safely with fallbacks
+      const lat = Number(origin.latitude) || 0.0;
+      const lon = Number(origin.longitude) || 0.0;
+      const ele = Number(origin.elevation) || 0.0;
+      const roll = Number(origin.roll) || 0.0;
+      const pitch = Number(origin.pitch) || 0.0;
+      const yaw = Number(origin.yaw) || 0.0;
       
       // Warn if RPY values look like degrees instead of radians
       if (Math.abs(roll) > 6.3 || Math.abs(pitch) > 6.3 || Math.abs(yaw) > 6.3) {
         console.warn('RPY values appear to be in degrees rather than radians. Expected range: ±6.28 radians (±360°)');
       }
+      
+      console.log(`parsed map_config.yaml → lat=${lat.toFixed(6)}, lon=${lon.toFixed(6)}, ele=${ele.toFixed(2)}, roll=${roll.toFixed(4)}, pitch=${pitch.toFixed(4)}, yaw=${yaw.toFixed(4)}`);
       
       return { lat, lon, ele, roll, pitch, yaw };
     } catch (error) {
@@ -398,6 +455,48 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
     return { vectorCount, cloudCount, pointCount };
   };
 
+  // Helper to compute layer statistics
+  const computeLayerStats = () => {
+    const vectorBox = new THREE.Box3();
+    const cloudBox = new THREE.Box3();
+    let hasVectorGeometry = false;
+    let hasCloudGeometry = false;
+
+    // Compute vector bounds
+    vectorFrameRef.current.traverse((child) => {
+      if (child instanceof THREE.Line && child.geometry) {
+        child.geometry.computeBoundingBox();
+        if (child.geometry.boundingBox && !child.geometry.boundingBox.isEmpty()) {
+          vectorBox.expandByObject(child);
+          hasVectorGeometry = true;
+        }
+      }
+    });
+
+    // Compute cloud bounds
+    cloudFrameRef.current.traverse((child) => {
+      if (child instanceof THREE.Points && child.geometry) {
+        child.geometry.computeBoundingBox();
+        if (child.geometry.boundingBox && !child.geometry.boundingBox.isEmpty()) {
+          cloudBox.expandByObject(child);
+          hasCloudGeometry = true;
+        }
+      }
+    });
+
+    const vectorCentroid = hasVectorGeometry ? vectorBox.getCenter(new THREE.Vector3()) : undefined;
+    const cloudCentroid = hasCloudGeometry ? cloudBox.getCenter(new THREE.Vector3()) : undefined;
+    const vectorSphere = hasVectorGeometry ? vectorBox.getBoundingSphere(new THREE.Sphere()) : undefined;
+    const cloudSphere = hasCloudGeometry ? cloudBox.getBoundingSphere(new THREE.Sphere()) : undefined;
+
+    return {
+      vectorCentroid,
+      cloudCentroid,
+      vectorRadius: vectorSphere?.radius,
+      cloudRadius: cloudSphere?.radius
+    };
+  };
+
   const handleFileSelect = async (file: File, type: 'pointcloud' | 'vector' | 'mapProjectorInfo' | 'mapConfig') => {
     setLoadedFiles(prev => ({ ...prev, [type]: file }));
     setStatus(`File loaded: ${file.name}`);
@@ -415,10 +514,16 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
     setStatus("Reloading with new files...");
     
     try {
-      // Reset map frame transforms
+      // Reset all frame transforms to identity
       mapFrameRef.current.position.set(0, 0, 0);
       mapFrameRef.current.rotation.set(0, 0, 0);
       mapFrameRef.current.scale.set(1, 1, 1);
+      vectorFrameRef.current.position.set(0, 0, 0);
+      vectorFrameRef.current.rotation.set(0, 0, 0);
+      vectorFrameRef.current.scale.set(1, 1, 1);
+      cloudFrameRef.current.position.set(0, 0, 0);
+      cloudFrameRef.current.rotation.set(0, 0, 0);
+      cloudFrameRef.current.scale.set(1, 1, 1);
       
       // Clear previous data and reset per-load refs/state
       cloudGroupRef.current.clear();
@@ -429,6 +534,8 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
       cachedWaysRef.current = [];
       cachedNodeMapRef.current = new Map();
       setOriginOffset(null); // IMPORTANT: clear old MGRS offsets
+      normOriginRef.current = null; // Clear normalization origin
+      setLayerStats({}); // Clear stats
       
       // Parse YAML info
       const yamlInfo = await parseProjectorYaml(loadedFiles.mapProjectorInfo);
@@ -514,12 +621,38 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
       material.transparent = true;
       material.opacity = 0.8;
       
-      originalGeomRef.current = obj.geometry.clone();
       currentPointRef.current = obj;
+      originalGeomRef.current = obj.geometry.clone();
       
       // Mount the Points under the PCD frame, then mount the frame under cloudGroupRef
       pcdFrame.add(obj);
       cloudGroupRef.current.add(pcdFrame);
+      
+      // Compute cloud statistics and check for alignment
+      const stats = computeLayerStats();
+      setLayerStats(prev => ({ 
+        ...prev, 
+        cloudCentroid: stats.cloudCentroid, 
+        cloudRadius: stats.cloudRadius 
+      }));
+      
+      // PCD alignment: if cloud is absolute UTM-scale, translate cloudFrameRef
+      if (stats.cloudCentroid) {
+        const cloudMagnitude = stats.cloudCentroid.length();
+        console.log(`PCD centroid magnitude: ${cloudMagnitude.toFixed(2)} meters`);
+        
+        if (cloudMagnitude > 10000 && normOriginRef.current) {
+          // PCD appears absolute - align with vector normalization origin
+          const { E0, N0, U0 } = normOriginRef.current;
+          cloudFrameRef.current.position.x = -E0;
+          cloudFrameRef.current.position.y = -U0;
+          cloudFrameRef.current.position.z = vectorFlipY ? +N0 : -N0;
+          console.log(`PCD aligned: translated cloudFrameRef by (-${E0.toFixed(2)}, -${U0.toFixed(2)}, ${vectorFlipY ? '+' : '-'}${N0.toFixed(2)})`);
+        } else if (cloudMagnitude <= 10000) {
+          console.log("PCD appears local - no alignment needed");
+        }
+      }
+      
       setStatus("Point cloud loaded.");
       updatePointCloudSettings();
     } finally {
@@ -557,18 +690,19 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
         
         let X: number, Y: number, Z: number;
         if (node.x != null && node.y != null) {
-          // Local coordinates (CARLA)
+          // Local coordinates (CARLA) - use directly
           [X, Y, Z] = [node.x, node.y, node.z ?? 0];
         } else if (usingProj4 && node.lat != null && node.lon != null && projForThisMap) {
-          // Geographic coordinates (MGRS) - use same projection as vector map
+          // Geographic coordinates (MGRS) - project to UTM and normalize (same as vector map)
           const [px, py, pz] = applyProjection([node.lon, node.lat, node.z ?? 0], projForThisMap);
-          [X, Y, Z] = [px, py, pz];
-          
-          // Apply origin offset if enabled and available (same as vector map)
-          if (applyOriginOffset && originOffset) {
-            X = X - originOffset.E;
-            Y = Y - originOffset.N;
-            Z = Z - originOffset.U;
+          // Apply same normalization as vector map
+          if (normOriginRef.current) {
+            const { E0, N0, U0 } = normOriginRef.current;
+            X = px - E0;
+            Y = py - N0;
+            Z = pz - U0;
+          } else {
+            [X, Y, Z] = [px, py, pz];
           }
         } else {
           continue;
@@ -692,23 +826,57 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
         }
       }
 
-      // Decide if we need proj4 for this map instance
+      // Decide coordinate flavor and setup normalization
       let usingProj4 = false;
-      let projForThisMap: ProjectionConfig = proj; // start from current component projection settings
+      let projForThisMap: ProjectionConfig = proj;
+      let E0 = 0, N0 = 0, U0 = 0; // Normalization origin
+      let originSource = "none";
 
       if (!hasLocal && hasLatLon && firstLat != null && firstLon != null) {
-        // derive UTM EPSG (prefer mgrs_grid / mgrs_code; else from lon)
+        // MGRS/geographic map - derive UTM EPSG
         const utmEpsg = deriveUtmEpsgFromSample(firstLat, firstLon, yamlInfo?.mgrsGrid || sampleMgrs);
         projForThisMap = { mode: "proj4", from: "EPSG:4326", to: utmEpsg };
         usingProj4 = true;
         setStatus(`Derived UTM projection: ${utmEpsg}`);
         
-        // Calculate origin offset if mapOrigin is provided
+        // Compute normalization origin in UTM meters
         const effectiveMapOrigin = mapOrigin || tempMapOrigin;
-        if (effectiveMapOrigin && usingProj4) {
-          const [E0, N0, U0] = applyProjection([effectiveMapOrigin.lon, effectiveMapOrigin.lat, effectiveMapOrigin.ele], projForThisMap);
-          setOriginOffset({ E: E0, N: N0, U: U0 });
-          console.log(`Origin offset calculated: E=${E0.toFixed(2)}, N=${N0.toFixed(2)}, U=${U0.toFixed(2)}`);
+        if (effectiveMapOrigin) {
+          // Use map_config.yaml origin
+          [E0, N0, U0] = applyProjection([effectiveMapOrigin.lon, effectiveMapOrigin.lat, effectiveMapOrigin.ele], projForThisMap);
+          originSource = tempMapOrigin ? "map_config (TEMP)" : "map_config";
+          console.log(`Using map_config origin: E0=${E0.toFixed(2)}, N0=${N0.toFixed(2)}, U0=${U0.toFixed(2)}`);
+        } else {
+          // Fallback: compute centroid of projected nodes as origin
+          let sumE = 0, sumN = 0, sumZ = 0, count = 0;
+          for (const [_, node] of nodeMap.entries()) {
+            if (node.lat != null && node.lon != null) {
+              const [E, N, Z] = applyProjection([node.lon, node.lat, node.z ?? 0], projForThisMap);
+              sumE += E; sumN += N; sumZ += Z; count++;
+            }
+          }
+          if (count > 0) {
+            E0 = sumE / count; N0 = sumN / count; U0 = sumZ / count;
+            originSource = "centroid-fallback";
+            console.log(`Using centroid fallback origin: E0=${E0.toFixed(2)}, N0=${N0.toFixed(2)}, U0=${U0.toFixed(2)}`);
+          }
+        }
+        
+        // Store normalization origin for PCD alignment
+        normOriginRef.current = { E0, N0, U0 };
+        
+        // Check for unrealistic coordinates before normalization
+        const maxE = Math.max(...Array.from(nodeMap.values()).filter(n => n.lat != null).map(n => {
+          const [E] = applyProjection([n.lon!, n.lat!, 0], projForThisMap);
+          return Math.abs(E);
+        }));
+        const maxN = Math.max(...Array.from(nodeMap.values()).filter(n => n.lat != null).map(n => {
+          const [_, N] = applyProjection([n.lon!, n.lat!, 0], projForThisMap);
+          return Math.abs(N);
+        }));
+        
+        if (maxE > 1e7 || maxN > 1e7) {
+          console.warn(`Vector appears un-normalized; check EPSG or mgrs_grid. Selected EPSG=${utmEpsg}, maxE=${maxE.toFixed(0)}, maxN=${maxN.toFixed(0)}`);
         }
       }
 
@@ -739,21 +907,20 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
 
         let X: number, Y: number, Z: number;
         if (hasLocal && node.x != null) {
+          // Local coordinates (CARLA) - use directly
           [X, Y, Z] = [node.x, node.y, node.z ?? 0];
         } else if (usingProj4 && node.lat != null && node.lon != null) {
+          // Geographic coordinates (MGRS) - project to UTM and normalize
           const [px, py, pz] = applyProjection([node.lon, node.lat, node.z ?? 0], projForThisMap);
-          [X, Y, Z] = [px, py, pz];
-          
-          // Apply origin offset if enabled and available
-          if (applyOriginOffset && originOffset) {
-            X = X - originOffset.E;
-            Y = Y - originOffset.N;
-            Z = Z - originOffset.U;
-          }
+          // ALWAYS apply normalization for MGRS (automatic alignment)
+          X = px - E0;
+          Y = py - N0;
+          Z = pz - U0;
         } else {
           continue;
         }
 
+        // Map to viewer coordinates: x=E, y=Z, z=±N (respecting vectorFlipY)
         const Yup = vectorFlipY ? -Y : Y;
         pts.push(new THREE.Vector3(X, Z, Yup));
       }
@@ -775,25 +942,30 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
       }
     }
     
-    // Apply mapFrameRef transforms after loading
+    // Compute and store vector statistics
+    const stats = computeLayerStats();
+    setLayerStats(prev => ({ 
+      ...prev, 
+      vectorCentroid: stats.vectorCentroid, 
+      vectorRadius: stats.vectorRadius,
+      originSource 
+    }));
+    
+    // Apply RPY rotation if enabled (only for UI toggle, not alignment)
     const effectiveMapOrigin = mapOrigin || tempMapOrigin;
-    if (effectiveMapOrigin && usingProj4 && originOffset) {
-      if (!applyOriginOffset) {
-        // Apply single mapFrameRef offset instead of per-point subtraction
-        mapFrameRef.current.position.x = -originOffset.E;
-        mapFrameRef.current.position.z = vectorFlipY ? +originOffset.N : -originOffset.N;
-        mapFrameRef.current.position.y = -originOffset.U;
-      }
-      
-      // Apply RPY rotation if enabled
-      if (applyOriginRPY) {
-        mapFrameRef.current.rotation.x = effectiveMapOrigin.roll;
-        mapFrameRef.current.rotation.y = effectiveMapOrigin.yaw;
-        mapFrameRef.current.rotation.z = vectorFlipY ? -effectiveMapOrigin.pitch : effectiveMapOrigin.pitch;
-      }
+    if (effectiveMapOrigin && applyOriginRPY) {
+      mapFrameRef.current.rotation.x = effectiveMapOrigin.roll;
+      mapFrameRef.current.rotation.y = effectiveMapOrigin.yaw;
+      mapFrameRef.current.rotation.z = vectorFlipY ? -effectiveMapOrigin.pitch : effectiveMapOrigin.pitch;
     }
     
-    setStatus("Vector map loaded.");
+    // Check bounds after normalization
+    if (stats.vectorRadius && stats.vectorRadius > 5e6) {
+      setStatus("Vector bounds extremely large after normalization — projection/origin mismatch likely");
+      console.warn(`Vector radius after normalization: ${stats.vectorRadius.toFixed(0)} meters`);
+    } else {
+      setStatus("Vector map loaded.");
+    }
     } finally {
       setIsLoadingVectorMap(false);
     }
@@ -805,6 +977,17 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
     // Get load token to prevent async races
     const myToken = ++loadTokenRef.current;
     
+    // Reset all frame transforms to identity
+    mapFrameRef.current.position.set(0, 0, 0);
+    mapFrameRef.current.rotation.set(0, 0, 0);
+    mapFrameRef.current.scale.set(1, 1, 1);
+    vectorFrameRef.current.position.set(0, 0, 0);
+    vectorFrameRef.current.rotation.set(0, 0, 0);
+    vectorFrameRef.current.scale.set(1, 1, 1);
+    cloudFrameRef.current.position.set(0, 0, 0);
+    cloudFrameRef.current.rotation.set(0, 0, 0);
+    cloudFrameRef.current.scale.set(1, 1, 1);
+    
     // reset groups and state
     cloudGroupRef.current.clear();
     vectorGroupRef.current.clear();
@@ -814,11 +997,8 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
     cachedWaysRef.current = [];
     cachedNodeMapRef.current = new Map();
     setOriginOffset(null);
-    
-    // Reset mapFrameRef transforms
-    mapFrameRef.current.position.set(0, 0, 0);
-    mapFrameRef.current.rotation.set(0, 0, 0);
-    mapFrameRef.current.scale.set(1, 1, 1);
+    normOriginRef.current = null;
+    setLayerStats({});
 
     (async () => {
       let yamlInfo: { projector: "Local" | "MGRS" | "Unknown"; mgrsGrid?: string } = { projector: "Unknown", mgrsGrid: undefined };
@@ -903,10 +1083,15 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
             Coords: {projectorMeta.usingLocalTags ? "local_x/local_y (meters)" : (projectorMeta.usingProj4 ? `lat/lon → ${projectorMeta.utmEpsg}` : "unknown")}
           </div>
           <div style={{ fontSize: "10px", color: "#888", marginTop: "2px" }}>
-            Origin: {(mapOrigin || tempMapOrigin) ? "present" : "none"} 
-            {(mapOrigin || tempMapOrigin) && tempMapOrigin && " (TEMP)"} | 
-            Offset: {applyOriginOffset ? "on" : "off"} | 
-            RPY: {applyOriginRPY ? "on" : "off"}
+            Origin: {layerStats.originSource || "none"} | 
+            UsingProj4: {projectorMeta.usingProj4 ? "true" : "false"} | 
+            EPSG: {projectorMeta.utmEpsg || "none"}
+          </div>
+          <div style={{ fontSize: "10px", color: "#888", marginTop: "2px" }}>
+            Vector centroid: {layerStats.vectorCentroid ? `(${layerStats.vectorCentroid.x.toFixed(1)}, ${layerStats.vectorCentroid.y.toFixed(1)}, ${layerStats.vectorCentroid.z.toFixed(1)})` : "none"}
+          </div>
+          <div style={{ fontSize: "10px", color: "#888", marginTop: "2px" }}>
+            PCD centroid: {layerStats.cloudCentroid ? `(${layerStats.cloudCentroid.x.toFixed(1)}, ${layerStats.cloudCentroid.y.toFixed(1)}, ${layerStats.cloudCentroid.z.toFixed(1)})` : "none"}
           </div>
           <div style={{ fontSize: "10px", color: "#888", marginTop: "2px" }}>
             Geometry: {(() => {
