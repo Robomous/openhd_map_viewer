@@ -257,7 +257,10 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
 
   // Helper to parse YAML projector info
   async function parseProjectorYaml(file?: File): Promise<{ projector:"Local"|"MGRS"|"Unknown"; mgrsGrid?:string }> {
-    if (!file) return { projector: "Unknown" };
+    if (!file) {
+      // Default to MGRS when no projector file is provided
+      return { projector: "MGRS" };
+    }
     try {
       const text = await file.text();
       const doc: any = yaml.load(text);
@@ -277,7 +280,8 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
       return result;
     } catch (error) {
       console.warn('Error parsing map_projector_info.yaml:', error);
-      return { projector: "Unknown" };
+      // On parse error, fall back to MGRS
+      return { projector: "MGRS" };
     }
   }
 
@@ -1001,7 +1005,8 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
     setLayerStats({});
 
     (async () => {
-      let yamlInfo: { projector: "Local" | "MGRS" | "Unknown"; mgrsGrid?: string } = { projector: "Unknown", mgrsGrid: undefined };
+      // Default to MGRS if file not present or fetch fails
+      let yamlInfo: { projector: "Local" | "MGRS" | "Unknown"; mgrsGrid?: string } = { projector: "MGRS", mgrsGrid: undefined };
       try {
         const base = vectorUrl.substring(0, vectorUrl.lastIndexOf("/") + 1);
         const res = await fetch(base + "map_projector_info.yaml");
@@ -1131,7 +1136,7 @@ export const OpenHDMapViewer: React.FC<OpenHDMapViewerProps> = ({
               </div>
               <div style={{ marginTop: "8px" }}>
                 <label style={{ display: "block", marginBottom: "4px", fontSize: "12px", color: "#e9edf1" }}>
-                  Map Projector Info (.yaml):
+                  Map Projector Info (.yaml, optional):
                 </label>
                 <input type="file" accept=".yaml,.yml" onChange={e=>{ const f=e.target.files?.[0]; if (f) handleFileSelect(f, 'mapProjectorInfo'); }} />
                 {loadedFiles.mapProjectorInfo && <div style={{ fontSize: "10px", color: "#888" }}>✓ {loadedFiles.mapProjectorInfo.name}</div>}
